@@ -1,0 +1,23 @@
+spring:
+  application:
+    name: kafka-consumer-database-test
+
+  kafka:
+    consumer:
+      group-id: sbGroup-test
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+
+app:
+  kafka:
+    topic: wikimedia_recent_change_test
+  persistence:
+    queue-capacity: 1000
+    batch-size: 10
+    flush-interval-ms: 200
+
+logging:
+  level:
+    app.js: DEBUG
+    org.testcontainers: INFO

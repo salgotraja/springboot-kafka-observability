@@ -1,0 +1,56 @@
+spring:
+  application:
+    name: kafka-consumer-database
+
+  devtools:
+    add-properties: true
+
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      group-id: sbGroup
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+
+  mongodb:
+    uri: mongodb://admin:admin@localhost:27017/wikimedia?authSource=admin
+
+server:
+  port: 9091
+  shutdown: graceful
+
+spring.lifecycle.timeout-per-shutdown-phase: 30s
+
+app:
+  kafka:
+    topic: wikimedia_recent_change
+    dlq-topic: wikimedia_recent_change_dlq
+  persistence:
+    queue-capacity: 10000
+    batch-size: 100
+    flush-interval-ms: 1000
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+  tracing:
+    sampling:
+      probability: 1.0
+  otlp:
+    tracing:
+      endpoint: http://localhost:4318/v1/traces

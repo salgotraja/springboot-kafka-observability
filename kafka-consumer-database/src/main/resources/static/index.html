@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wikimedia Live Dashboard</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: system-ui, -apple-system, sans-serif; background: #0d1117; color: #c9d1d9; }
+
+        .header {
+            background: #161b22;
+            padding: 16px 24px;
+            border-bottom: 1px solid #30363d;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .header h1 { font-size: 20px; font-weight: 600; }
+
+        .stats {
+            display: flex;
+            gap: 24px;
+            font-size: 13px;
+        }
+        .stat { display: flex; align-items: center; gap: 6px; }
+        .stat-value { font-weight: 600; color: #58a6ff; }
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #3fb950;
+        }
+        .status-dot.disconnected { background: #f85149; }
+
+        .controls {
+            padding: 12px 24px;
+            background: #161b22;
+            border-bottom: 1px solid #30363d;
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+        .controls input {
+            background: #0d1117;
+            border: 1px solid #30363d;
+            color: #c9d1d9;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            width: 200px;
+        }
+        .controls input:focus { outline: none; border-color: #58a6ff; }
+        .controls button {
+            background: #21262d;
+            border: 1px solid #30363d;
+            color: #c9d1d9;
+            padding: 6px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+        .controls button:hover { background: #30363d; }
+        .controls button.active { background: #238636; border-color: #238636; }
+
+        .container { padding: 16px 24px; height: calc(100vh - 120px); overflow-y: auto; }
+
+        .event {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            padding: 12px 16px;
+            margin-bottom: 8px;
+            transition: border-color 0.2s;
+        }
+        .event:hover { border-color: #58a6ff; }
+        .event.new { animation: highlight 1s ease-out; }
+
+        @keyframes highlight {
+            from { background: #1f3a5f; }
+            to { background: #161b22; }
+        }
+
+        .event-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 6px;
+        }
+        .event-title {
+            font-weight: 600;
+            color: #58a6ff;
+            font-size: 14px;
+            word-break: break-word;
+        }
+        .event-meta {
+            font-size: 12px;
+            color: #8b949e;
+            white-space: nowrap;
+            margin-left: 12px;
+        }
+        .event-user {
+            font-size: 13px;
+            color: #8b949e;
+            margin-bottom: 4px;
+        }
+        .event-user strong { color: #c9d1d9; }
+        .event-comment {
+            font-size: 13px;
+            color: #8b949e;
+            font-style: italic;
+        }
+        .event-tags {
+            margin-top: 8px;
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+        .tag {
+            font-size: 11px;
+            padding: 2px 8px;
+            border-radius: 12px;
+            background: #21262d;
+        }
+        .tag.edit { background: #1f6feb33; color: #58a6ff; }
+        .tag.new { background: #23863633; color: #3fb950; }
+        .tag.bot { background: #a371f733; color: #a371f7; }
+
+        .empty {
+            text-align: center;
+            padding: 48px;
+            color: #8b949e;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Wikimedia Live Dashboard</h1>
+        <div class="stats">
+            <div class="stat">
+                <div class="status-dot" id="statusDot"></div>
+                <span id="connectionStatus">Connecting...</span>
+            </div>
+            <div class="stat">
+                Events: <span class="stat-value" id="eventCount">0</span>
+            </div>
+            <div class="stat">
+                Rate: <span class="stat-value" id="eventRate">0</span>/s
+            </div>
+        </div>
+    </div>
+
+    <div class="controls">
+        <input type="text" id="filter" placeholder="Filter by title or user...">
+        <button id="pauseBtn">Pause</button>
+        <button id="clearBtn">Clear</button>
+    </div>
+
+    <div class="container" id="events">
+        <div class="empty">Waiting for events...</div>
+    </div>
+
+<script>
+    const eventsContainer = document.getElementById("events");
+    const eventCountEl = document.getElementById("eventCount");
+    const eventRateEl = document.getElementById("eventRate");
+    const statusDot = document.getElementById("statusDot");
+    const connectionStatus = document.getElementById("connectionStatus");
+    const filterInput = document.getElementById("filter");
+    const pauseBtn = document.getElementById("pauseBtn");
+    const clearBtn = document.getElementById("clearBtn");
+
+    let eventCount = 0;
+    let recentEvents = [];
+    let paused = false;
+    let filter = "";
+
+    loadHistoricalEvents();
+
+    const es = new EventSource("/wikimedia/stream");
+
+    es.addEventListener("wikimedia-change", e => {
+        if (paused) return;
+
+        const data = JSON.parse(e.data);
+        eventCount++;
+        recentEvents.push(Date.now());
+
+        if (eventsContainer.querySelector(".empty")) {
+            eventsContainer.innerHTML = "";
+        }
+
+        const titleText = data.title || data.page_title || "Unknown";
+        const userText = data.user || "Unknown";
+
+        if (filter && !titleText.toLowerCase().includes(filter) && !userText.toLowerCase().includes(filter)) {
+            return;
+        }
+
+        const div = document.createElement("div");
+        div.className = "event new";
+
+        const isBot = data.bot === true;
+        const isNew = data.type === "new";
+        const changeSize = data.length ? (data.length.new - data.length.old) : 0;
+
+        div.innerHTML = `
+            <div class="event-header">
+                <span class="event-title">${escapeHtml(titleText)}</span>
+                <span class="event-meta">${new Date().toLocaleTimeString()}</span>
+            </div>
+            <div class="event-user">by <strong>${escapeHtml(userText)}</strong> on ${data.wiki || "unknown"}</div>
+            <div class="event-comment">${escapeHtml(data.comment || "no comment")}</div>
+            <div class="event-tags">
+                ${isNew ? '<span class="tag new">new page</span>' : '<span class="tag edit">edit</span>'}
+                ${isBot ? '<span class="tag bot">bot</span>' : ''}
+                ${changeSize !== 0 ? `<span class="tag">${changeSize > 0 ? '+' : ''}${changeSize}</span>` : ''}
+            </div>
+        `;
+
+        eventsContainer.prepend(div);
+        eventCountEl.textContent = eventCount;
+
+        if (eventsContainer.children.length > 200) {
+            eventsContainer.lastChild.remove();
+        }
+
+        setTimeout(() => div.classList.remove("new"), 1000);
+    });
+
+    es.onopen = () => {
+        statusDot.classList.remove("disconnected");
+        connectionStatus.textContent = "Connected";
+    };
+
+    es.onerror = () => {
+        statusDot.classList.add("disconnected");
+        connectionStatus.textContent = "Disconnected";
+    };
+
+    setInterval(() => {
+        const now = Date.now();
+        recentEvents = recentEvents.filter(t => now - t < 1000);
+        eventRateEl.textContent = recentEvents.length;
+    }, 1000);
+
+    filterInput.addEventListener("input", e => {
+        filter = e.target.value.toLowerCase();
+    });
+
+    pauseBtn.addEventListener("click", () => {
+        paused = !paused;
+        pauseBtn.textContent = paused ? "Resume" : "Pause";
+        pauseBtn.classList.toggle("active", paused);
+    });
+
+    clearBtn.addEventListener("click", () => {
+        eventsContainer.innerHTML = '<div class="empty">Waiting for events...</div>';
+        eventCount = 0;
+        eventCountEl.textContent = "0";
+    });
+
+    function escapeHtml(text) {
+        const div = document.createElement("div");
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    function loadHistoricalEvents() {
+        fetch("/api/events/recent?limit=50")
+            .then(res => res.json())
+            .then(events => {
+                if (events.length === 0) return;
+
+                eventsContainer.innerHTML = "";
+                eventCount = events.length;
+                eventCountEl.textContent = eventCount;
+
+                events.forEach(event => {
+                    const data = JSON.parse(event.eventData);
+                    const titleText = data.title || data.page_title || "Unknown";
+                    const userText = data.user || "Unknown";
+                    const isBot = data.bot === true;
+                    const isNew = data.type === "new";
+                    const changeSize = data.length ? (data.length.new - data.length.old) : 0;
+
+                    const div = document.createElement("div");
+                    div.className = "event";
+                    div.innerHTML = `
+                        <div class="event-header">
+                            <span class="event-title">${escapeHtml(titleText)}</span>
+                            <span class="event-meta">${new Date(event.receivedAt).toLocaleTimeString()}</span>
+                        </div>
+                        <div class="event-user">by <strong>${escapeHtml(userText)}</strong> on ${data.wiki || "unknown"}</div>
+                        <div class="event-comment">${escapeHtml(data.comment || "no comment")}</div>
+                        <div class="event-tags">
+                            ${isNew ? '<span class="tag new">new page</span>' : '<span class="tag edit">edit</span>'}
+                            ${isBot ? '<span class="tag bot">bot</span>' : ''}
+                            ${changeSize !== 0 ? `<span class="tag">${changeSize > 0 ? '+' : ''}${changeSize}</span>` : ''}
+                        </div>
+                    `;
+                    eventsContainer.appendChild(div);
+                });
+            })
+            .catch(err => console.error("Failed to load historical events:", err));
+    }
+</script>
+</body>
+</html>

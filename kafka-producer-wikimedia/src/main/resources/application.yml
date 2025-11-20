@@ -1,0 +1,49 @@
+spring:
+  application:
+    name: kafka-producer-wikimedia
+
+  devtools:
+    add-properties: true
+
+  kafka:
+    producer:
+      bootstrap-servers: localhost:9092
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+
+server:
+  port: 9090
+  shutdown: graceful
+
+spring.lifecycle.timeout-per-shutdown-phase: 30s
+
+app:
+  kafka:
+    topic: wikimedia_recent_change
+  wikimedia:
+    stream-url: https://stream.wikimedia.org/v2/stream/recentchange
+    retry:
+      max-attempts: 50
+      initial-backoff-seconds: 3
+      max-backoff-minutes: 2
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+  tracing:
+    sampling:
+      probability: 1.0
+  otlp:
+    tracing:
+      endpoint: http://localhost:4318/v1/traces

@@ -1,0 +1,83 @@
+groups:
+  - name: wikimedia_kafka_alerts
+    rules:
+      - alert: HighEventQueueSize
+        expr: wikimedia_events_queue_size > 5000
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High event queue size on {{ $labels.application }}"
+          description: "Event queue size is {{ $value }} (threshold: 5000)"
+
+      - alert: CriticalEventQueueSize
+        expr: wikimedia_events_queue_size > 8000
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Critical event queue size on {{ $labels.application }}"
+          description: "Event queue size is {{ $value }} (threshold: 8000)"
+
+      - alert: DLQEventsIncreasing
+        expr: increase(wikimedia_events_dlq_total[5m]) > 10
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "DLQ events increasing on {{ $labels.application }}"
+          description: "{{ $value }} events sent to DLQ in last 5 minutes"
+
+      - alert: ApplicationDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Application {{ $labels.job }} is down"
+          description: "{{ $labels.instance }} has been down for more than 1 minute"
+
+      - alert: HighJVMMemoryUsage
+        expr: (jvm_memory_used_bytes{area="heap"} / jvm_memory_max_bytes{area="heap"}) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High JVM heap usage on {{ $labels.application }}"
+          description: "JVM heap usage is {{ $value | humanizePercentage }}"
+
+      - alert: NoEventsProduced
+        expr: rate(wikimedia_events_produced_total[5m]) == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "No events produced by {{ $labels.application }}"
+          description: "Producer has not sent any events in the last 5 minutes"
+
+      - alert: NoEventsPersisted
+        expr: rate(wikimedia_events_persisted_total[5m]) == 0 and wikimedia_events_queue_size > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Events not being persisted on {{ $labels.application }}"
+          description: "Queue has {{ $value }} events but nothing is being persisted"
+
+      - alert: HighHTTPLatency
+        expr: histogram_quantile(0.99, sum(rate(http_server_requests_seconds_bucket[5m])) by (le, uri)) > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High HTTP latency for {{ $labels.uri }}"
+          description: "p99 latency is {{ $value }}s (threshold: 2s)"
+
+      - alert: FrequentReconnects
+        expr: increase(wikimedia_stream_reconnects_total[10m]) > 5
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Frequent reconnects on {{ $labels.application }}"
+          description: "{{ $value }} reconnection attempts in last 10 minutes"
