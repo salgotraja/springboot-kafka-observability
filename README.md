@@ -72,6 +72,27 @@ springboot-kafka-app/
 - Java 25
 - Docker & Docker Compose
 - Maven
+- [Task](https://taskfile.dev/) (optional, for convenience commands)
+
+### Using Taskfile (Recommended)
+
+```bash
+# Install Task: https://taskfile.dev/installation/
+
+# Start everything
+task start
+
+# Or step by step:
+task infra:up      # Start infrastructure
+task build         # Build project
+task run:producer  # Run producer (Terminal 1)
+task run:consumer  # Run consumer (Terminal 2)
+
+# View all available commands
+task --list
+```
+
+### Manual Setup
 
 ### 1. Start Infrastructure
 
@@ -327,6 +348,98 @@ docker exec sb-kafka kafka-console-consumer \
 # View container logs
 docker logs -f sb-kafka
 docker logs -f sb-mongodb
+```
+
+## Taskfile Commands
+
+### Quick Reference
+
+```bash
+# Build & Run
+task build              # Build entire project
+task run:producer       # Run producer
+task run:consumer       # Run consumer
+task test               # Run all tests
+
+# Infrastructure
+task infra:up           # Start all services
+task infra:down         # Stop all services
+task infra:status       # Show service status
+
+# Kafka Operations
+task kafka:topics       # List topics
+task kafka:lag          # Show consumer lag
+task kafka:reset        # Reset offsets to earliest
+task kafka:consume -- wikimedia_recent_change  # Consume messages
+
+# MongoDB
+task mongo:shell        # Open MongoDB shell
+task mongo:count        # Count events
+task mongo:failed       # Count failed events
+task mongo:clear        # Clear all events
+
+# Logs
+task logs:kafka         # Kafka logs
+task logs:mongo         # MongoDB logs
+task logs:prometheus    # Prometheus logs
+task logs:grafana       # Grafana logs
+
+# SSH into Containers
+task ssh:kafka          # SSH into Kafka
+task ssh:mongo          # SSH into MongoDB
+task ssh:prometheus     # SSH into Prometheus
+task ssh:grafana        # SSH into Grafana
+
+# Health & Metrics
+task health             # Check all services health
+task metrics:producer   # Get producer metrics
+task metrics:consumer   # Get consumer metrics
+task metrics:queue      # Get queue size
+
+# Troubleshooting
+task debug:network      # Show Docker network
+task debug:ports        # Show exposed ports
+task debug:consumer-lag # Debug consumer lag
+task debug:connectivity # Test Prometheus connectivity
+
+# Observability
+task obs:up             # Start observability stack
+task prometheus:reload  # Reload Prometheus config
+task prometheus:targets # Check scrape targets
+task grafana:reset      # Reset Grafana
+
+# Cleanup
+task clean              # Clean build artifacts
+task clean:docker       # Remove containers and volumes
+task clean:all          # Clean everything
+
+# Utilities
+task urls               # Show all service URLs
+task start              # Start everything
+task stop               # Stop everything
+```
+
+## CI/CD
+
+### GitHub Actions
+
+The project includes GitHub Actions workflows:
+
+- **CI** (`.github/workflows/ci.yml`): Build, test, and code quality checks on every push/PR
+- **Release** (`.github/workflows/release.yml`): Create releases and Docker images on tags
+
+### Required Secrets
+
+Configure these in your GitHub repository settings:
+
+- `DOCKERHUB_USERNAME`: Docker Hub username
+- `DOCKERHUB_TOKEN`: Docker Hub access token
+
+### Creating a Release
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
 ```
 
 ## Documentation
