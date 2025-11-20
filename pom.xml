@@ -19,6 +19,7 @@
     <properties>
         <java.version>25</java.version>
         <opentelemetry.version>1.40.0</opentelemetry.version>
+        <spotless.version>2.46.0</spotless.version>
     </properties>
     <dependencies>
         <dependency>
@@ -94,6 +95,22 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+            <!-- Spotless Code Formatting -->
+            <plugin>
+                <groupId>com.diffplug.spotless</groupId>
+                <artifactId>spotless-maven-plugin</artifactId>
+                <version>${spotless.version}</version>
+                <configuration>
+                    <java>
+                        <googleJavaFormat>
+                            <version>1.28.0</version>
+                            <style>GOOGLE</style>
+                        </googleJavaFormat>
+                        <importOrder />
+                        <removeUnusedImports />
+                    </java>
+                </configuration>
             </plugin>
         </plugins>
     </build>

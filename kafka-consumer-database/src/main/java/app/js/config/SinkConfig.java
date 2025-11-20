@@ -7,8 +7,8 @@ import reactor.core.publisher.Sinks;
 @Configuration
 public class SinkConfig {
 
-    @Bean
-    public Sinks.Many<String> eventSink() {
-        return Sinks.many().replay().limit(100);
-    }
+  @Bean
+  public Sinks.Many<String> eventSink() {
+    return Sinks.many().replay().limit(100);
+  }
 }

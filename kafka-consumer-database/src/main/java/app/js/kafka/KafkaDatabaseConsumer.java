@@ -9,27 +9,25 @@ import reactor.core.publisher.Sinks;
 
 @Service
 public class KafkaDatabaseConsumer {
-    private static final Logger logger = LoggerFactory.getLogger(KafkaDatabaseConsumer.class);
+  private static final Logger logger = LoggerFactory.getLogger(KafkaDatabaseConsumer.class);
 
-    private final Sinks.Many<String> sink;
-    private final EventPersistenceService persistenceService;
+  private final Sinks.Many<String> sink;
+  private final EventPersistenceService persistenceService;
 
-    public KafkaDatabaseConsumer(Sinks.Many<String> sink, EventPersistenceService persistenceService) {
-        this.sink = sink;
-        this.persistenceService = persistenceService;
+  public KafkaDatabaseConsumer(
+      Sinks.Many<String> sink, EventPersistenceService persistenceService) {
+    this.sink = sink;
+    this.persistenceService = persistenceService;
+  }
+
+  @KafkaListener(topics = "${app.kafka.topic}", groupId = "${spring.kafka.consumer.group-id}")
+  public void consume(String eventMessage) {
+    logger.debug("Event message received");
+
+    if (!persistenceService.submit(eventMessage)) {
+      logger.warn("Event queue full, event dropped");
     }
 
-    @KafkaListener(
-            topics = "${app.kafka.topic}",
-            groupId = "${spring.kafka.consumer.group-id}"
-    )
-    public void consume(String eventMessage) {
-        logger.debug("Event message received");
-
-        if (!persistenceService.submit(eventMessage)) {
-            logger.warn("Event queue full, event dropped");
-        }
-
-        sink.tryEmitNext(eventMessage);
-    }
+    sink.tryEmitNext(eventMessage);
+  }
 }

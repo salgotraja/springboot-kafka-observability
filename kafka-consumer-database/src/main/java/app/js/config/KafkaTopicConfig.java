@@ -9,12 +9,11 @@ import org.springframework.kafka.config.TopicBuilder;
 @Configuration
 public class KafkaTopicConfig {
 
-    @Value("${app.kafka.dlq-topic}")
-    private String dlqTopicName;
+  @Value("${app.kafka.dlq-topic}")
+  private String dlqTopicName;
 
-    @Bean
-    public NewTopic dlqTopic() {
-        return TopicBuilder.name(dlqTopicName)
-                .build();
-    }
+  @Bean
+  public NewTopic dlqTopic() {
+    return TopicBuilder.name(dlqTopicName).build();
+  }
 }

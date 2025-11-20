@@ -29,6 +29,21 @@ tasks:
     cmds:
       - ./mvnw clean compile -DskipTests
 
+  # ==================== Code Quality Tasks ====================
+  format:
+    desc: Format code using Spotless
+    cmds:
+      - echo "💅 Formatting code..."
+      - mvn spotless:apply
+      - echo "✅ Code formatting completed"
+
+  format:check:
+    desc: Check code formatting
+    cmds:
+      - echo "🔍 Checking code formatting..."
+      - mvn spotless:check
+      - echo "✅ Code format check completed"
+
   # ==================== RUN ====================
   run-producer:
     desc: Run producer application
