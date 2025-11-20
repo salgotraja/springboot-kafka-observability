@@ -1,0 +1,372 @@
+version: '3'
+
+vars:
+  DOCKER_COMPOSE: docker-compose -f infra/docker/docker-compose.yml
+  KAFKA_CONTAINER: sb-kafka
+  MONGO_CONTAINER: sb-mongodb
+  PRODUCER_PORT: 9090
+  CONSUMER_PORT: 9091
+
+tasks:
+  # ==================== BUILD ====================
+  build:
+    desc: Build entire project
+    cmds:
+      - ./mvnw clean install
+
+  build-producer:
+    desc: Build producer module only
+    cmds:
+      - ./mvnw clean install -pl kafka-producer-wikimedia
+
+  build-consumer:
+    desc: Build consumer module only
+    cmds:
+      - ./mvnw clean install -pl kafka-consumer-database
+
+  compile:
+    desc: Compile without tests
+    cmds:
+      - ./mvnw clean compile -DskipTests
+
+  # ==================== RUN ====================
+  run-producer:
+    desc: Run producer application
+    cmds:
+      - ./mvnw spring-boot:run -pl kafka-producer-wikimedia
+
+  run-consumer:
+    desc: Run consumer application
+    cmds:
+      - ./mvnw spring-boot:run -pl kafka-consumer-database
+
+  # ==================== TEST ====================
+  test:
+    desc: Run all tests
+    cmds:
+      - ./mvnw test
+
+  test-producer:
+    desc: Run producer tests
+    cmds:
+      - ./mvnw test -pl kafka-producer-wikimedia
+
+  test-consumer:
+    desc: Run consumer tests
+    cmds:
+      - ./mvnw test -pl kafka-consumer-database
+
+  # ==================== INFRASTRUCTURE ====================
+  infra-up:
+    desc: Start all infrastructure services
+    cmds:
+      - '{{.DOCKER_COMPOSE}} up -d'
+
+  infra-down:
+    desc: Stop all infrastructure services
+    cmds:
+      - '{{.DOCKER_COMPOSE}} down'
+
+  infra-restart:
+    desc: Restart all infrastructure services
+    cmds:
+      - '{{.DOCKER_COMPOSE}} restart'
+
+  infra-status:
+    desc: Show status of all services
+    cmds:
+      - '{{.DOCKER_COMPOSE}} ps'
+
+  infra-logs:
+    desc: Show logs for all services
+    cmds:
+      - '{{.DOCKER_COMPOSE}} logs -f'
+
+  # ==================== KAFKA ====================
+  kafka-up:
+    desc: Start Kafka and Zookeeper
+    cmds:
+      - '{{.DOCKER_COMPOSE}} up -d zookeeper kafka kafka-ui'
+
+  kafka-topics:
+    desc: List all Kafka topics
+    cmds:
+      - docker exec {{.KAFKA_CONTAINER}} kafka-topics --bootstrap-server localhost:9092 --list
+
+  kafka-lag:
+    desc: Show consumer group lag
+    cmds:
+      - docker exec {{.KAFKA_CONTAINER}} kafka-consumer-groups --bootstrap-server localhost:9092 --group sbGroup --describe
+
+  kafka-reset:
+    desc: Reset consumer group offset to earliest
+    cmds:
+      - docker exec {{.KAFKA_CONTAINER}} kafka-consumer-groups --bootstrap-server localhost:9092 --group sbGroup --topic wikimedia_recent_change --reset-offsets --to-earliest --execute
+
+  kafka-groups:
+    desc: List consumer groups
+    cmds:
+      - docker exec {{.KAFKA_CONTAINER}} kafka-consumer-groups --bootstrap-server localhost:9092 --list
+
+  # ==================== MONGODB ====================
+  mongo-up:
+    desc: Start MongoDB and Mongo Express
+    cmds:
+      - '{{.DOCKER_COMPOSE}} up -d mongodb mongo-express'
+
+  mongo-shell:
+    desc: Open MongoDB shell
+    cmds:
+      - docker exec -it {{.MONGO_CONTAINER}} mongosh -u admin -p admin --authenticationDatabase admin
+
+  mongo-count:
+    desc: Count documents in wikimedia_events
+    cmds:
+      - docker exec {{.MONGO_CONTAINER}} mongosh -u admin -p admin --authenticationDatabase admin --eval "use wikimedia; db.wikimedia_events.countDocuments()"
+
+  mongo-failed:
+    desc: Count failed events in DLQ
+    cmds:
+      - docker exec {{.MONGO_CONTAINER}} mongosh -u admin -p admin --authenticationDatabase admin --eval "use wikimedia; db.failed_events.countDocuments()"
+
+  mongo-clear:
+    desc: Clear all events from MongoDB
+    cmds:
+      - docker exec {{.MONGO_CONTAINER}} mongosh -u admin -p admin --authenticationDatabase admin --eval "use wikimedia; db.wikimedia_events.deleteMany({}); db.failed_events.deleteMany({})"
+
+  # ==================== OBSERVABILITY ====================
+  obs-up:
+    desc: Start observability stack
+    cmds:
+      - '{{.DOCKER_COMPOSE}} up -d prometheus grafana alertmanager loki tempo promtail otel-collector zipkin'
+
+  obs-down:
+    desc: Stop observability stack
+    cmds:
+      - '{{.DOCKER_COMPOSE}} stop prometheus grafana alertmanager loki tempo promtail otel-collector zipkin'
+
+  prometheus-reload:
+    desc: Reload Prometheus configuration
+    cmds:
+      - curl -X POST http://localhost:9093/-/reload
+
+  prometheus-targets:
+    desc: Check Prometheus scrape targets
+    cmds:
+      - 'curl -s http://localhost:9093/api/v1/targets | jq ".data.activeTargets[] | {job: .labels.job, health: .health, lastError: .lastError}"'
+
+  prometheus-alerts:
+    desc: Show active Prometheus alerts
+    cmds:
+      - curl -s http://localhost:9093/api/v1/alerts | jq '.data.alerts'
+
+  grafana-reset:
+    desc: Reset Grafana (delete volume and restart)
+    cmds:
+      - '{{.DOCKER_COMPOSE}} stop grafana'
+      - docker volume rm docker_grafana_data || true
+      - '{{.DOCKER_COMPOSE}} up -d grafana'
+
+  # ==================== LOGS ====================
+  logs-kafka:
+    desc: Show Kafka logs
+    cmds:
+      - docker logs -f {{.KAFKA_CONTAINER}}
+
+  logs-mongo:
+    desc: Show MongoDB logs
+    cmds:
+      - docker logs -f {{.MONGO_CONTAINER}}
+
+  logs-prometheus:
+    desc: Show Prometheus logs
+    cmds:
+      - docker logs -f sb-prometheus
+
+  logs-grafana:
+    desc: Show Grafana logs
+    cmds:
+      - docker logs -f sb-grafana
+
+  logs-otel:
+    desc: Show OpenTelemetry Collector logs
+    cmds:
+      - docker logs -f sb-otel-collector
+
+  logs-loki:
+    desc: Show Loki logs
+    cmds:
+      - docker logs -f sb-loki
+
+  logs-tempo:
+    desc: Show Tempo logs
+    cmds:
+      - docker logs -f sb-tempo
+
+  logs-zipkin:
+    desc: Show Zipkin logs
+    cmds:
+      - docker logs -f sb-zipkin
+
+  logs-alertmanager:
+    desc: Show Alertmanager logs
+    cmds:
+      - docker logs -f sb-alertmanager
+
+  # ==================== SSH/EXEC INTO CONTAINERS ====================
+  ssh-kafka:
+    desc: SSH into Kafka container
+    cmds:
+      - docker exec -it {{.KAFKA_CONTAINER}} /bin/bash
+
+  ssh-mongo:
+    desc: SSH into MongoDB container
+    cmds:
+      - docker exec -it {{.MONGO_CONTAINER}} /bin/bash
+
+  ssh-prometheus:
+    desc: SSH into Prometheus container
+    cmds:
+      - docker exec -it sb-prometheus /bin/sh
+
+  ssh-grafana:
+    desc: SSH into Grafana container
+    cmds:
+      - docker exec -it sb-grafana /bin/bash
+
+  ssh-otel:
+    desc: SSH into OpenTelemetry Collector container
+    cmds:
+      - docker exec -it sb-otel-collector /bin/sh
+
+  ssh-loki:
+    desc: SSH into Loki container
+    cmds:
+      - docker exec -it sb-loki /bin/sh
+
+  ssh-tempo:
+    desc: SSH into Tempo container
+    cmds:
+      - docker exec -it sb-tempo /bin/sh
+
+  # ==================== HEALTH CHECKS ====================
+  health:
+    desc: Check health of all services
+    cmds:
+      - echo "=== Producer Health ===" && curl -s http://localhost:{{.PRODUCER_PORT}}/actuator/health | jq . || echo "Producer not running"
+      - echo "=== Consumer Health ===" && curl -s http://localhost:{{.CONSUMER_PORT}}/actuator/health | jq . || echo "Consumer not running"
+      - echo "=== Prometheus ===" && curl -s http://localhost:9093/-/healthy || echo "Prometheus is down"
+      - echo "=== Grafana ===" && curl -s http://localhost:3000/api/health | jq . || echo "Grafana is down"
+
+  health-producer:
+    desc: Check producer health
+    cmds:
+      - curl -s http://localhost:{{.PRODUCER_PORT}}/actuator/health | jq .
+
+  health-consumer:
+    desc: Check consumer health
+    cmds:
+      - curl -s http://localhost:{{.CONSUMER_PORT}}/actuator/health | jq .
+
+  # ==================== METRICS ====================
+  metrics-producer:
+    desc: Get producer Prometheus metrics
+    cmds:
+      - curl -s http://localhost:{{.PRODUCER_PORT}}/actuator/prometheus | grep wikimedia
+
+  metrics-consumer:
+    desc: Get consumer Prometheus metrics
+    cmds:
+      - curl -s http://localhost:{{.CONSUMER_PORT}}/actuator/prometheus | grep wikimedia
+
+  metrics-queue:
+    desc: Get current queue size
+    cmds:
+      - curl -s http://localhost:{{.CONSUMER_PORT}}/actuator/prometheus | grep wikimedia_events_queue_size
+
+  # ==================== TROUBLESHOOTING ====================
+  debug-network:
+    desc: Show Docker network details
+    cmds:
+      - docker network inspect docker_sb-network || docker network inspect infra_sb-network
+
+  debug-volumes:
+    desc: List Docker volumes
+    cmds:
+      - docker volume ls | grep -E "kafka|mongo|prometheus|grafana|loki|tempo"
+
+  debug-consumer-lag:
+    desc: Debug consumer lag issues
+    cmds:
+      - echo "=== Consumer Group Details ===" && docker exec {{.KAFKA_CONTAINER}} kafka-consumer-groups --bootstrap-server localhost:9092 --group sbGroup --describe
+      - echo "=== Topic Partitions ===" && docker exec {{.KAFKA_CONTAINER}} kafka-topics --bootstrap-server localhost:9092 --describe --topic wikimedia_recent_change
+
+  debug-connectivity:
+    desc: Test connectivity from Prometheus to apps
+    cmds:
+      - echo "=== Testing Producer ===" && docker exec sb-prometheus wget -qO- http://host.docker.internal:{{.PRODUCER_PORT}}/actuator/health || echo "Cannot reach producer"
+      - echo "=== Testing Consumer ===" && docker exec sb-prometheus wget -qO- http://host.docker.internal:{{.CONSUMER_PORT}}/actuator/health || echo "Cannot reach consumer"
+
+  debug-otel:
+    desc: Check OpenTelemetry collector status
+    cmds:
+      - docker logs --tail 50 sb-otel-collector
+
+  # ==================== CLEANUP ====================
+  clean:
+    desc: Clean build artifacts
+    cmds:
+      - ./mvnw clean
+
+  clean-docker:
+    desc: Remove all containers and volumes
+    cmds:
+      - '{{.DOCKER_COMPOSE}} down -v'
+
+  clean-all:
+    desc: Clean everything (build + docker)
+    cmds:
+      - task: clean
+      - task: clean-docker
+
+  # ==================== QUICK START ====================
+  start:
+    desc: Start everything (infra + build + info)
+    cmds:
+      - task: infra-up
+      - task: build
+      - echo "=== Infrastructure Started ==="
+      - echo "Kafka UI - http://localhost:8080"
+      - echo "Mongo Express - http://localhost:8082"
+      - echo "Grafana - http://localhost:3000 (admin/admin)"
+      - echo "Prometheus - http://localhost:9093"
+      - echo "Zipkin - http://localhost:9411"
+      - echo "Run producer - task run-producer"
+      - echo "Run consumer - task run-consumer"
+
+  stop:
+    desc: Stop everything
+    cmds:
+      - task: infra-down
+
+  # ==================== URLS ====================
+  urls:
+    desc: Show all service URLs
+    cmds:
+      - echo "=== Application ==="
+      - echo "Producer Health - http://localhost:{{.PRODUCER_PORT}}/actuator/health"
+      - echo "Consumer Health - http://localhost:{{.CONSUMER_PORT}}/actuator/health"
+      - echo "Consumer Dashboard - http://localhost:{{.CONSUMER_PORT}}"
+      - echo "SSE Stream - http://localhost:{{.CONSUMER_PORT}}/wikimedia/stream"
+      - echo ""
+      - echo "=== Infrastructure ==="
+      - echo "Kafka UI - http://localhost:8080"
+      - echo "Mongo Express - http://localhost:8082"
+      - echo ""
+      - echo "=== Observability ==="
+      - echo "Prometheus - http://localhost:9093"
+      - echo "Grafana - http://localhost:3000 (admin/admin)"
+      - echo "Alertmanager - http://localhost:9094"
+      - echo "Zipkin - http://localhost:9411"
+      - echo "Loki - http://localhost:3100"
+      - echo "Tempo - http://localhost:3200"
