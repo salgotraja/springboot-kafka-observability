@@ -10,15 +10,24 @@
         </encoder>
     </appender>
 
-    <appender name="JSON" class="ch.qos.logback.core.ConsoleAppender">
-        <encoder class="ch.qos.logback.classic.encoder.JsonEncoder">
-            <withContext>true</withContext>
-            <withFormattedMessage>true</withFormattedMessage>
-        </encoder>
+    <appender name="LOKI" class="com.github.loki4j.logback.Loki4jAppender">
+        <http>
+            <url>http://localhost:3100/loki/api/v1/push</url>
+        </http>
+        <format>
+            <label>
+                <pattern>app=${appName},host=${HOSTNAME},level=%level</pattern>
+            </label>
+            <message>
+                <pattern>{"timestamp":"%d{yyyy-MM-dd HH:mm:ss.SSS}","level":"%level","thread":"%thread","logger":"%logger{36}","traceId":"%X{traceId:-}","spanId":"%X{spanId:-}","message":"%msg"}</pattern>
+            </message>
+            <sortByTime>true</sortByTime>
+        </format>
     </appender>
 
     <root level="INFO">
         <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="LOKI"/>
     </root>
 
     <logger name="app.js" level="DEBUG"/>

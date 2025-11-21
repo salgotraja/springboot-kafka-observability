@@ -32,8 +32,6 @@ management:
   otlp:
     tracing:
       endpoint: ""
-    metrics:
-      endpoint: ""
 
 logging:
   level:

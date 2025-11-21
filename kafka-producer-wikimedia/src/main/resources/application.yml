@@ -5,11 +5,16 @@ spring:
   devtools:
     add-properties: true
 
+  reactor:
+    context-propagation: auto
+
   kafka:
     producer:
       bootstrap-servers: localhost:9092
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
+    template:
+      observation-enabled: true
 
 server:
   port: 9090
@@ -57,5 +62,6 @@ management:
   otlp:
     tracing:
       endpoint: http://localhost:4318/v1/traces
+      transport: http
     metrics:
       endpoint: http://localhost:4318/v1/metrics

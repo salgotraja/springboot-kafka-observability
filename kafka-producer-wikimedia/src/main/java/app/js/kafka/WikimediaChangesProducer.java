@@ -2,6 +2,8 @@ package app.js.kafka;
 
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.observation.Observation;
+import io.micrometer.observation.ObservationRegistry;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.slf4j.Logger;
@@ -21,6 +23,7 @@ public class WikimediaChangesProducer {
 
   private final KafkaTemplate<String, String> kafkaTemplate;
   private final WebClient webClient;
+  private final ObservationRegistry observationRegistry;
   private final String topic;
   private final String streamUrl;
   private final int maxRetryAttempts;
@@ -34,6 +37,7 @@ public class WikimediaChangesProducer {
   public WikimediaChangesProducer(
       KafkaTemplate<String, String> kafkaTemplate,
       WebClient webClient,
+      ObservationRegistry observationRegistry,
       MeterRegistry meterRegistry,
       @Value("${app.kafka.topic}") String topic,
       @Value("${app.wikimedia.stream-url}") String streamUrl,
@@ -42,6 +46,7 @@ public class WikimediaChangesProducer {
       @Value("${app.wikimedia.retry.max-backoff-minutes}") int maxBackoffMinutes) {
     this.kafkaTemplate = kafkaTemplate;
     this.webClient = webClient;
+    this.observationRegistry = observationRegistry;
     this.topic = topic;
     this.streamUrl = streamUrl;
     this.maxRetryAttempts = maxRetryAttempts;
@@ -78,10 +83,15 @@ public class WikimediaChangesProducer {
     connectWithRetry()
         .take(200)
         .subscribe(
-            data -> {
-              log.info("[POC #{}/100] Sending Wikimedia event to Kafka", counter.getAndIncrement());
-              kafkaTemplate.send(topic, data);
-            },
+            data ->
+                Observation.createNotStarted("wikimedia.event.process", observationRegistry)
+                    .observe(
+                        () -> {
+                          log.info(
+                              "[POC #{}/100] Sending Wikimedia event to Kafka",
+                              counter.getAndIncrement());
+                          kafkaTemplate.send(topic, data);
+                        }),
             error -> log.error("Stream error: {}", error.toString()),
             () -> log.info("POC COMPLETE - 100 real Wikimedia events consumed and sent to Kafka"));
   }
