@@ -149,13 +149,36 @@ docker-compose -f infra/docker/docker-compose.yml ps
 
 ### Consumer (9091)
 
+#### Events
+
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/` | GET | Live dashboard |
 | `/wikimedia/stream` | GET | SSE event stream |
 | `/ws/wikimedia` | WS | WebSocket stream |
-| `/api/events/recent` | GET | Last 50 events from MongoDB |
+| `/api/events` | GET | Paginated events (params: `page`, `size`, `search`) |
+| `/api/events/recent` | GET | Recent events (param: `limit`) |
 | `/api/events/stats` | GET | Processing statistics |
+
+#### Analytics
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/analytics/by-wiki` | GET | Events grouped by wiki (param: `hours`) |
+| `/api/analytics/by-type` | GET | Events grouped by type (param: `hours`) |
+| `/api/analytics/top-users` | GET | Top editors (params: `hours`, `limit`) |
+| `/api/analytics/top-pages` | GET | Most edited pages (params: `hours`, `limit`) |
+| `/api/analytics/hourly` | GET | Hourly distribution (param: `hours`) |
+| `/api/analytics/breakdown` | GET | Events by bot/namespace (param: `hours`) |
+
+#### System Health
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/system/status` | GET | Overall system health status |
+| `/api/system/dlq` | GET | DLQ status and recent failures (param: `limit`) |
+| `/api/system/throughput` | GET | Current throughput metrics |
+| `/api/system/latency` | GET | Estimated processing latency |
 | `/actuator/health` | GET | Health check |
 | `/actuator/prometheus` | GET | Prometheus metrics |
 

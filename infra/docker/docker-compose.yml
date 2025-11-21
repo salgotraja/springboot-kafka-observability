@@ -94,7 +94,7 @@ services:
       - sb-network
 
   prometheus:
-    image: prom/prometheus:v2.47.0
+    image: prom/prometheus:v2.54.0
     container_name: sb-prometheus
     ports:
       - "9093:9090"
@@ -109,6 +109,7 @@ services:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
       - '--web.enable-lifecycle'
+      - '--enable-feature=exemplar-storage'
     networks:
       - sb-network
 

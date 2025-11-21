@@ -12,10 +12,28 @@ spring:
 app:
   kafka:
     topic: wikimedia_recent_change_test
+    dlq-topic: wikimedia_recent_change_dlq_test
   persistence:
     queue-capacity: 1000
     batch-size: 10
     flush-interval-ms: 200
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+  tracing:
+    enabled: false
+  otlp:
+    tracing:
+      endpoint: ""
+    metrics:
+      endpoint: ""
 
 logging:
   level:
