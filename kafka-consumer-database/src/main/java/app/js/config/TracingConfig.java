@@ -1,22 +1,25 @@
 package app.js.config;
 
 import io.opentelemetry.exporter.otlp.http.trace.OtlpHttpSpanExporter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
 
 @Configuration
 public class TracingConfig {
 
+  private static final Logger log = LoggerFactory.getLogger(TracingConfig.class);
+
   @Bean
-  @ConditionalOnProperty(name = "management.otlp.tracing.endpoint", matchIfMissing = false)
+  @Profile("!test")
   public OtlpHttpSpanExporter otlpHttpSpanExporter(
-      @Value("${management.otlp.tracing.endpoint:http://localhost:4318/v1/traces}")
-          String endpoint) {
-    if (endpoint == null || endpoint.isBlank()) {
-      return null;
-    }
-    return OtlpHttpSpanExporter.builder().setEndpoint(endpoint).build();
+      @Value("${app.tracing.endpoint:http://localhost:4318/v1/traces}") String endpoint) {
+    log.info("Configuring OTLP span exporter with endpoint: {}", endpoint);
+    return OtlpHttpSpanExporter.builder()
+        .setEndpoint(endpoint)
+        .build();
   }
 }

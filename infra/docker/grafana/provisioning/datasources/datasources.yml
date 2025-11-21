@@ -6,8 +6,15 @@ datasources:
     access: proxy
     url: http://prometheus:9090
     uid: prometheus
-    isDefault: true
+    basicAuth: false
+    isDefault: false
+    version: 1
     editable: false
+    jsonData:
+      httpMethod: GET
+      exemplarTraceIdDestinations:
+        - datasourceUid: tempo
+          name: trace_id
 
   - name: Loki
     type: loki
@@ -29,15 +36,16 @@ datasources:
     uid: tempo
     editable: false
     jsonData:
+      httpMethod: GET
       tracesToLogs:
         datasourceUid: loki
         tags: ['job', 'instance']
-        mappedTags: [{ key: 'service.name', value: 'service' }]
+        mappedTags: [{ key: 'service.name', value: 'app' }]
         mapTagNamesEnabled: true
-        spanStartTimeShift: '1h'
+        spanStartTimeShift: '-1h'
         spanEndTimeShift: '1h'
         filterByTraceID: true
-        filterBySpanID: false
+        filterBySpanID: true
       serviceMap:
         datasourceUid: prometheus
       nodeGraph:
