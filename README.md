@@ -38,7 +38,7 @@ A real-time event streaming application that consumes Wikimedia recent changes v
 ## Tech Stack
 
 - Java 25
-- Spring Boot 4.0.0-SNAPSHOT
+- Spring Boot 4.0.0
 - Apache Kafka
 - MongoDB
 - WebFlux (reactive SSE client)

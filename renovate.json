@@ -1,0 +1,43 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended"
+  ],
+  "labels": ["dependencies"],
+  "schedule": ["at any time"],
+  "packageRules": [
+    {
+      "matchPackagePatterns": ["^org\\.springframework"],
+      "groupName": "Spring Framework",
+      "automerge": true,
+      "matchUpdateTypes": ["patch", "minor"]
+    },
+    {
+      "matchPackagePatterns": ["^io\\.micrometer", "^io\\.opentelemetry"],
+      "groupName": "Observability",
+      "automerge": true,
+      "matchUpdateTypes": ["patch", "minor"]
+    },
+    {
+      "matchPackagePatterns": ["^org\\.testcontainers"],
+      "groupName": "Testcontainers",
+      "automerge": true,
+      "matchUpdateTypes": ["patch", "minor"]
+    },
+    {
+      "matchDepTypes": ["test"],
+      "automerge": true,
+      "matchUpdateTypes": ["patch", "minor"]
+    },
+    {
+      "matchPackageNames": ["com.fasterxml.jackson.core:jackson-databind"],
+      "addLabels": ["security"],
+      "automerge": false
+    },
+    {
+      "matchUpdateTypes": ["major"],
+      "automerge": false,
+      "addLabels": ["major-update"]
+    }
+  ]
+}
