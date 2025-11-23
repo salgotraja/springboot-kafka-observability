@@ -1,0 +1,247 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: wikimedia
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+      external_labels:
+        cluster: wikimedia-kafka
+
+    alerting:
+      alertmanagers:
+        - static_configs:
+            - targets:
+              - alertmanager:9093
+
+    rule_files:
+      - /etc/prometheus/rules/*.yml
+
+    scrape_configs:
+      - job_name: 'prometheus'
+        static_configs:
+          - targets: ['localhost:9090']
+
+      - job_name: 'kafka-producer'
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names:
+                - wikimedia
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            action: keep
+            regex: kafka-producer
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+            action: keep
+            regex: true
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+            action: replace
+            target_label: __metrics_path__
+            regex: (.+)
+          - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+            action: replace
+            regex: ([^:]+)(?::\d+)?;(\d+)
+            replacement: $1:$2
+            target_label: __address__
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+
+      - job_name: 'kafka-consumer'
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names:
+                - wikimedia
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            action: keep
+            regex: kafka-consumer
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+            action: keep
+            regex: true
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+            action: replace
+            target_label: __metrics_path__
+            regex: (.+)
+          - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+            action: replace
+            regex: ([^:]+)(?::\d+)?;(\d+)
+            replacement: $1:$2
+            target_label: __address__
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+
+      - job_name: 'kafka'
+        static_configs:
+          - targets:
+            - wikimedia-kafka-kafka-0.wikimedia-kafka-kafka-brokers:9404
+            - wikimedia-kafka-kafka-1.wikimedia-kafka-kafka-brokers:9404
+            - wikimedia-kafka-kafka-2.wikimedia-kafka-kafka-brokers:9404
+
+  alert_rules.yml: |
+    groups:
+      - name: wikimedia-alerts
+        rules:
+          - alert: HighEventQueueSize
+            expr: wikimedia_events_queue_size > 5000
+            for: 2m
+            labels:
+              severity: warning
+            annotations:
+              summary: "High event queue size"
+              description: "Event queue size is {{ $value }}"
+
+          - alert: CriticalEventQueueSize
+            expr: wikimedia_events_queue_size > 8000
+            for: 1m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Critical event queue size"
+              description: "Event queue size is critically high at {{ $value }}"
+
+          - alert: DLQEventsIncreasing
+            expr: increase(wikimedia_events_dlq_total[5m]) > 10
+            for: 1m
+            labels:
+              severity: warning
+            annotations:
+              summary: "DLQ events increasing"
+              description: "{{ $value }} events sent to DLQ in last 5 minutes"
+
+          - alert: ApplicationDown
+            expr: up{job=~"kafka-.*"} == 0
+            for: 1m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Application is down"
+              description: "{{ $labels.job }} instance {{ $labels.instance }} is down"
+
+          - alert: HighJVMMemoryUsage
+            expr: (jvm_memory_used_bytes{area="heap"} / jvm_memory_max_bytes{area="heap"}) * 100 > 80
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "High JVM memory usage"
+              description: "JVM heap usage is {{ $value }}%"
+
+          - alert: KafkaConsumerLag
+            expr: kafka_consumer_fetch_manager_records_lag_max > 10000
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "High Kafka consumer lag"
+              description: "Consumer lag is {{ $value }} records"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus
+  namespace: wikimedia
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prometheus
+  template:
+    metadata:
+      labels:
+        app: prometheus
+    spec:
+      serviceAccountName: prometheus
+      containers:
+        - name: prometheus
+          image: prom/prometheus:v2.54.0
+          ports:
+            - containerPort: 9090
+          args:
+            - '--config.file=/etc/prometheus/prometheus.yml'
+            - '--storage.tsdb.path=/prometheus'
+            - '--web.enable-lifecycle'
+            - '--enable-feature=exemplar-storage'
+          volumeMounts:
+            - name: config
+              mountPath: /etc/prometheus
+            - name: rules
+              mountPath: /etc/prometheus/rules
+            - name: storage
+              mountPath: /prometheus
+          resources:
+            requests:
+              memory: 512Mi
+              cpu: 250m
+            limits:
+              memory: 1Gi
+              cpu: 500m
+      volumes:
+        - name: config
+          configMap:
+            name: prometheus-config
+        - name: rules
+          configMap:
+            name: prometheus-config
+            items:
+              - key: alert_rules.yml
+                path: alert_rules.yml
+        - name: storage
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+  namespace: wikimedia
+spec:
+  selector:
+    app: prometheus
+  ports:
+    - port: 9090
+      targetPort: 9090
+      nodePort: 30093
+  type: NodePort
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: prometheus
+  namespace: wikimedia
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: prometheus
+rules:
+  - apiGroups: [""]
+    resources:
+      - nodes
+      - nodes/proxy
+      - services
+      - endpoints
+      - pods
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["extensions"]
+    resources:
+      - ingresses
+    verbs: ["get", "list", "watch"]
+  - nonResourceURLs: ["/metrics"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: prometheus
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: prometheus
+subjects:
+  - kind: ServiceAccount
+    name: prometheus
+    namespace: wikimedia

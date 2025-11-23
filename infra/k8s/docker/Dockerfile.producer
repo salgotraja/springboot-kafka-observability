@@ -1,0 +1,19 @@
+FROM eclipse-temurin:25-jre-alpine
+
+WORKDIR /app
+
+RUN addgroup -g 1001 -S appgroup && \
+    adduser -u 1001 -S appuser -G appgroup
+
+ARG JAR_FILE=kafka-producer-wikimedia/target/*.jar
+COPY ${JAR_FILE} app.jar
+
+RUN chown -R appuser:appgroup /app
+
+USER appuser
+
+EXPOSE 9090
+
+ENV JAVA_OPTS="-Xms256m -Xmx512m"
+
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]

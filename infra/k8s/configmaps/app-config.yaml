@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: wikimedia
+data:
+  KAFKA_BOOTSTRAP_SERVERS: "wikimedia-kafka-kafka-bootstrap:9092"
+  KAFKA_TOPIC: "wikimedia_recent_change"
+  KAFKA_DLQ_TOPIC: "wikimedia_recent_change_dlq"
+  KAFKA_CONSUMER_GROUP: "sbGroup"
+  MONGODB_HOST: "mongodb-0.mongodb-headless,mongodb-1.mongodb-headless,mongodb-2.mongodb-headless"
+  MONGODB_DATABASE: "wikimedia"
+  MONGODB_REPLICA_SET: "rs0"
+  WIKIMEDIA_STREAM_URL: "https://stream.wikimedia.org/v2/stream/recentchange"
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4318"
+  OTEL_SERVICE_NAME_PRODUCER: "kafka-producer-wikimedia"
+  OTEL_SERVICE_NAME_CONSUMER: "kafka-consumer-database"
