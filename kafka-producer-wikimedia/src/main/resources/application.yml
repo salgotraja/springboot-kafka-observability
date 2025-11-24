@@ -27,6 +27,10 @@ app:
     topic: wikimedia_recent_change
   wikimedia:
     stream-url: https://stream.wikimedia.org/v2/stream/recentchange
+    # client-type options:
+    #   - webclient: Direct WebClient usage (default, WikimediaChangesProducer)
+    #   - httpexchange: Spring Framework 7 @HttpExchange declarative client (WikimediaChangesProducerV2)
+    client-type: webclient
     retry:
       max-attempts: 50
       initial-backoff-seconds: 3

@@ -1,0 +1,20 @@
+spring:
+  application:
+    name: kafka-producer-wikimedia-test
+
+management:
+  otlp:
+    tracing:
+      endpoint: http://localhost:4318/v1/traces
+    metrics:
+      endpoint: http://localhost:4318/v1/metrics
+  tracing:
+    enabled: false
+  metrics:
+    export:
+      otlp:
+        enabled: false
+
+app:
+  wikimedia:
+    client-type: webclient

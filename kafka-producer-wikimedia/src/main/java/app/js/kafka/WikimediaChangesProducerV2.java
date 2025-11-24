@@ -1,5 +1,6 @@
 package app.js.kafka;
 
+import app.js.client.WikimediaStreamClient;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.observation.Observation;
@@ -9,28 +10,22 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.MediaType;
-import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
-import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Flux;
 import reactor.util.retry.Retry;
 
 @Service
-@ConditionalOnProperty(
-    name = "app.wikimedia.client-type",
-    havingValue = "webclient",
-    matchIfMissing = true)
-public class WikimediaChangesProducer {
+@ConditionalOnProperty(name = "app.wikimedia.client-type", havingValue = "httpexchange")
+public class WikimediaChangesProducerV2 {
 
-  private static final Logger log = LoggerFactory.getLogger(WikimediaChangesProducer.class);
+  private static final Logger log = LoggerFactory.getLogger(WikimediaChangesProducerV2.class);
 
   private final KafkaTemplate<String, String> kafkaTemplate;
-  private final WebClient webClient;
+  private final WikimediaStreamClient wikimediaStreamClient;
   private final ObservationRegistry observationRegistry;
   private final String topic;
-  private final String streamUrl;
   private final int maxRetryAttempts;
   private final int initialBackoffSeconds;
   private final int maxBackoffMinutes;
@@ -39,21 +34,19 @@ public class WikimediaChangesProducer {
   private final Counter eventsProducedCounter;
   private final Counter reconnectCounter;
 
-  public WikimediaChangesProducer(
+  public WikimediaChangesProducerV2(
       KafkaTemplate<String, String> kafkaTemplate,
-      WebClient webClient,
+      WikimediaStreamClient wikimediaStreamClient,
       ObservationRegistry observationRegistry,
       MeterRegistry meterRegistry,
       @Value("${app.kafka.topic}") String topic,
-      @Value("${app.wikimedia.stream-url}") String streamUrl,
       @Value("${app.wikimedia.retry.max-attempts}") int maxRetryAttempts,
       @Value("${app.wikimedia.retry.initial-backoff-seconds}") int initialBackoffSeconds,
       @Value("${app.wikimedia.retry.max-backoff-minutes}") int maxBackoffMinutes) {
     this.kafkaTemplate = kafkaTemplate;
-    this.webClient = webClient;
+    this.wikimediaStreamClient = wikimediaStreamClient;
     this.observationRegistry = observationRegistry;
     this.topic = topic;
-    this.streamUrl = streamUrl;
     this.maxRetryAttempts = maxRetryAttempts;
     this.initialBackoffSeconds = initialBackoffSeconds;
     this.maxBackoffMinutes = maxBackoffMinutes;
@@ -68,7 +61,6 @@ public class WikimediaChangesProducer {
             .description("Number of reconnection attempts to Wikimedia stream")
             .register(meterRegistry);
 
-    // startStreaming();
     startStreamingForPocOnly();
   }
 
@@ -93,23 +85,19 @@ public class WikimediaChangesProducer {
                     .observe(
                         () -> {
                           log.info(
-                              "[POC #{}/100] Sending Wikimedia event to Kafka",
+                              "[POC #{}/200] Sending Wikimedia event to Kafka",
                               counter.getAndIncrement());
                           kafkaTemplate.send(topic, data);
                         }),
             error -> log.error("Stream error: {}", error.toString()),
-            () -> log.info("POC COMPLETE - 100 real Wikimedia events consumed and sent to Kafka"));
+            () -> log.info("POC COMPLETE - 200 real Wikimedia events consumed and sent to Kafka"));
   }
 
   private Flux<String> connectWithRetry() {
-    return webClient
-        .get()
-        .uri(streamUrl)
-        .accept(MediaType.TEXT_EVENT_STREAM)
-        .retrieve()
-        .bodyToFlux(String.class)
+    return wikimediaStreamClient
+        .streamRecentChanges()
         .filter(data -> data.trim().startsWith("{"))
-        .doOnSubscribe(s -> log.info("Connected to Wikimedia recent change stream"))
+        .doOnSubscribe(s -> log.info("Connected to Wikimedia recent change stream via HTTP Service Client"))
         .doOnNext(d -> log.debug("Raw event size: {} bytes", d.length()))
         .retryWhen(
             Retry.backoff(maxRetryAttempts, Duration.ofSeconds(initialBackoffSeconds))
